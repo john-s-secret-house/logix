@@ -46,9 +46,11 @@ class LoraLinear(nn.Module):
         self._linear = linear
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        result = self._linear(input)
-        result += self.logix_lora_C(self.logix_lora_B(self.logix_lora_A(input)))
-
+        result = self._linear(input).clone()
+        lora_A_output = self.logix_lora_A(input)
+        lora_B_output = self.logix_lora_B(lora_A_output)
+        lora_C_output = self.logix_lora_C(lora_B_output)
+        result += lora_C_output
         return result
 
     def pca_init_weight(self, covariance=None):
@@ -103,9 +105,11 @@ class LoraConv2d(nn.Module):
         self._conv = conv
 
     def forward(self, input) -> torch.Tensor:
-        result = self._conv(input)
-        result += self.logix_lora_C(self.logix_lora_B(self.logix_lora_A(input)))
-
+        result = self._conv(input).clone()
+        lora_A_output = self.logix_lora_A(input)
+        lora_B_output = self.logix_lora_B(lora_A_output)
+        lora_C_output = self.logix_lora_C(lora_B_output)
+        result += lora_C_output
         return result
 
     def pca_init_weight(self, covariance):
@@ -161,9 +165,11 @@ class LoraEmbedding(nn.Module):
         self._embedding = embedding
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        result = self._embedding(input)
-        result += self.logix_lora_C(self.logix_lora_B(self.logix_lora_A(input)))
-
+        result = self._embedding(input).clone()
+        lora_A_output = self.logix_lora_A(input)
+        lora_B_output = self.logix_lora_B(lora_A_output)
+        lora_C_output = self.logix_lora_C(lora_B_output)
+        result += lora_C_output
         return result
 
     def pca_init_weight(self, covariance=None):
