@@ -51,7 +51,9 @@ class LogIXCallback(TrainerCallback):
 
     def on_epoch_end(self, args, state, control, **kwargs):
         if self.args.mode == "log":
+            # print(f"Finalizing self.args.mode: {self.args.mode}")
             self.logix.finalize()
+            # print(f"Finalized self.args.mode: {self.args.mode}")
 
     def on_train_begin(self, args, state, control, **kwargs):
         if self.args.initialize_from_log:
@@ -69,6 +71,10 @@ class LogIXCallback(TrainerCallback):
             self.accumulated_log.append(self.logix.get_log(copy=True))
             accumulated_log = merge_logs(self.accumulated_log)
 
+            # Ensure that the accumulated log is properly initialized
+            if not accumulated_log:
+                raise ValueError("Accumulated log is empty or not properly initialized.")
+
             self.logix.influence.compute_influence_all(
                 accumulated_log,
                 self.log_dataloader(),
@@ -82,6 +88,10 @@ class LogIXCallback(TrainerCallback):
         elif self.args.mode == "self_influence":
             self.accumulated_log.append(self.logix.get_log(copy=True))
             accumulated_log = merge_logs(self.accumulated_log)
+
+            # Ensure that the accumulated log is properly initialized
+            if not accumulated_log:
+                raise ValueError("Accumulated log is empty or not properly initialized.")
 
             self.logix.influence.compute_self_influence(
                 accumulated_log,
