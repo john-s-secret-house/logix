@@ -2,40 +2,52 @@ import argparse
 
 import torch
 from tqdm import tqdm
-from train import construct_rn9, get_cifar10_dataloader
+from utils import construct_rn9, get_cifar10_dataloader, get_cifar2_dataloader
 
 from logix import LogIX, LogIXScheduler
 from logix.utils import DataIDGenerator
 
 parser = argparse.ArgumentParser("CIFAR Influence Analysis")
-parser.add_argument("--data", type=str, default="cifar10", help="cifar10/100")
-parser.add_argument("--eval-idxs", type=int, nargs="+", default=[0])
+parser.add_argument("--ckpt_path", type=str, default="../../../ckpts/CIFAR2_32_bs2048_ckpts", help="Checkpoint path")
+parser.add_argument("--md_num", type=int, default=10, help="Checkpoint model number")
+parser.add_argument("--data", type=str, default="CIFAR2_32", help="CIFAR10_32/CIFAR100_32")
+# parser.add_argument("--eval-idxs", type=int, nargs="+", default=[0])
+parser.add_argument("--eval-idxs", type=int, nargs="+", default=list(range(30)))
 parser.add_argument("--damping", type=float, default=None)
 parser.add_argument("--lora", type=str, default="none")
-parser.add_argument("--hessian", type=str, default="raw")
+# parser.add_argument("--hessian", type=str, default="raw")
+parser.add_argument("--hessian", type=str, default="kfac")
 parser.add_argument("--save", type=str, default="grad")
 args = parser.parse_args()
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+dataset = args.data
 
 model = construct_rn9().to(DEVICE)
 
 # Get a single checkpoint (first model_id and last epoch).
 model.load_state_dict(
-    torch.load(f"checkpoints/{args.data}_0_epoch_23.pt", map_location="cpu")
+    # torch.load(f"checkpoints/{args.data}_0_epoch_23.pt", map_location="cpu")
+    torch.load(f"{args.ckpt_path}/md_{args.md_num}/final.pt", map_location="cpu")
 )
 model.eval()
 
-dataloader_fn = get_cifar10_dataloader
+if dataset == 'CIFAR10_32':
+    dataloader_fn = get_cifar10_dataloader
+elif dataset == 'CIFAR2_32':
+    dataloader_fn = get_cifar2_dataloader
+else:
+    raise NotImplementedError(f"dataset, {dataset} is not supported")
+
 train_loader = dataloader_fn(
-    batch_size=512, split="train", shuffle=False, subsample=True, augment=False
+    batch_size=512, split="train", shuffle=False, subsample=False, augment=False
 )
 test_loader = dataloader_fn(
-    batch_size=1, split="valid", shuffle=False, indices=args.eval_idxs, augment=False
+    # batch_size=16, split="valid", shuffle=False, indices=args.eval_idxs, augment=False
+    batch_size=512, split="valid", shuffle=False, subsample=False, augment=False
 )
 
-logix = LogIX(project="test", config="./config.yaml")
+logix = LogIX(project=f"{args.data}_md{args.md_num}", config="./config.yaml")
 logix_scheduler = LogIXScheduler(
     logix, lora=args.lora, hessian=args.hessian, save=args.save
 )
@@ -59,6 +71,8 @@ log_loader = logix.build_log_dataloader()
 
 logix.eval()
 logix.setup({"grad": ["log"]})
+results = []
+if_scores_ls = []
 for test_input, test_target in test_loader:
     with logix(data_id=id_gen(test_input)):
         test_input, test_target = test_input.to(DEVICE), test_target.to(DEVICE)
@@ -74,8 +88,12 @@ for test_input, test_target in test_loader:
     result = logix.influence.compute_influence_all(
         test_log, log_loader, damping=args.damping
     )
-    break
+    results.append(result)
+    if_scores_ls.append(result["influence"])
+    # break
 
 # Save
-if_scores = result["influence"].numpy().tolist()
-torch.save(if_scores, "if_logix.pt")
+# if_scores = result["influence"].numpy().tolist()
+if_scores = torch.cat(if_scores_ls, dim=0)
+torch.save(if_scores, f"logix/{args.data}_md{args.md_num}/if_logix.pt")
+print(f"influence: {if_scores.shape}")

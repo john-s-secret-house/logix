@@ -3,6 +3,7 @@
 
 
 import random
+from typing import Any, List, Tuple
 
 import numpy as np
 import torch
@@ -75,14 +76,31 @@ def construct_rn9(num_classes=10, seed=0):
     )
     return model
 
+class CustomCIFAR10(torchvision.datasets.CIFAR10):
+    def __init__(self, *args, **kwargs):
+        super(CustomCIFAR10, self).__init__(*args, **kwargs)
+    def customize(self, selected_class: List[int]):
+        tmp_data = []
+        tmp_targets = []
+        for d, t in zip(self.data, self.targets):
+            if t in selected_class:
+                tmp_data.append(d)
+                tmp_targets.append(t)
+        self.data, self.targets = tmp_data, tmp_targets
+        return self
+    def __getitem__(self, index: int) -> Tuple[int, Any, Any]:
+        # img, target = super().__getitem__(index=index)
+        # output = DatasetsBase.format_output(
+        #     index, img, target, output_format=self.output_format)
+        # print(f"output: {output}")
+        # return output
+        itms = super().__getitem__(index=index)
+        resutls = {'input': itms[0], "label": itms[1]}
+        return resutls
 
-def get_cifar10_dataloader(
-    batch_size=256,
-    num_workers=8,
+def get_cifar10_dataset(
     split="train",
-    shuffle=False,
     augment=True,
-    drop_last=False,
     subsample=False,
     indices=None,
 ):
@@ -92,18 +110,20 @@ def get_cifar10_dataloader(
                 torchvision.transforms.RandomHorizontalFlip(),
                 torchvision.transforms.RandomAffine(0),
                 torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.201)
-                ),
+                # torchvision.transforms.Normalize(
+                #     (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.201)
+                # ),
+                torchvision.transforms.Normalize([0.5], [0.5]),
             ]
         )
     else:
         transforms = torchvision.transforms.Compose(
             [
                 torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.201)
-                ),
+                # torchvision.transforms.Normalize(
+                #     (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.201)
+                # ),
+                torchvision.transforms.Normalize([0.5], [0.5]),
             ]
         )
 
@@ -120,6 +140,87 @@ def get_cifar10_dataloader(
             print("Overriding `subsample` argument as `indices` was provided.")
         dataset = torch.utils.data.Subset(dataset, indices)
 
+    print(f"dataset[{split}] size: {len(dataset)}")
+    return dataset
+
+def get_cifar10_dataloader(
+    batch_size=256,
+    num_workers=8,
+    split="train",
+    shuffle=False,
+    augment=True,
+    drop_last=False,
+    subsample=False,
+    indices=None,
+):
+    dataset = get_cifar10_dataset(split=split, augment=augment, subsample=subsample, indices=indices)
+    
+    loader = torch.utils.data.DataLoader(
+        dataset=dataset,
+        shuffle=shuffle,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        drop_last=drop_last,
+    )
+
+    return loader
+
+def get_cifar2_dataset(
+    split="train",
+    augment=True,
+    subsample=False,
+    indices=None,
+):
+    if augment:
+        transforms = torchvision.transforms.Compose(
+            [
+                torchvision.transforms.RandomHorizontalFlip(),
+                torchvision.transforms.RandomAffine(0),
+                torchvision.transforms.ToTensor(),
+                # torchvision.transforms.Normalize(
+                #     (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.201)
+                # ),
+                torchvision.transforms.Normalize([0.5], [0.5]),
+            ]
+        )
+    else:
+        transforms = torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                # torchvision.transforms.Normalize(
+                #     (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.201)
+                # ),
+                torchvision.transforms.Normalize([0.5], [0.5]),
+            ]
+        )
+
+    is_train = split == "train"
+    dataset = CustomCIFAR10(
+        root="/tmp/cifar/", download=True, train=is_train, transform=transforms).customize([1, 7])
+
+    if subsample and split == "train" and indices is None:
+        dataset = torch.utils.data.Subset(dataset, np.arange(6_000))
+
+    if indices is not None:
+        if subsample and split == "train":
+            print("Overriding `subsample` argument as `indices` was provided.")
+        dataset = torch.utils.data.Subset(dataset, indices)
+
+    print(f"dataset[{split}] size: {len(dataset)}")
+    return dataset
+
+def get_cifar2_dataloader(
+    batch_size=256,
+    num_workers=8,
+    split="train",
+    shuffle=False,
+    augment=True,
+    drop_last=False,
+    subsample=False,
+    indices=None,
+):
+    dataset = get_cifar2_dataset(split=split, augment=augment, subsample=subsample, indices=indices)
+    
     loader = torch.utils.data.DataLoader(
         dataset=dataset,
         shuffle=shuffle,

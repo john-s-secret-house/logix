@@ -10,7 +10,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.nn import CrossEntropyLoss
 from torch.optim import SGD, lr_scheduler
 from tqdm.auto import tqdm
-from utils import construct_rn9, get_cifar10_dataloader, set_seed
+from utils import construct_rn9, get_cifar10_dataloader, set_seed, get_cifar2_dataloader
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -63,14 +63,21 @@ def train(
     return model
 
 
-def main(dataset="cifar10"):
+def main(dataset="CIFAR2_32"):
     os.makedirs("checkpoints", exist_ok=True)
 
-    if dataset == "cifar10":
+    if dataset == "CIFAR10_32":
         train_loader = get_cifar10_dataloader(
-            batch_size=512, split="train", shuffle=True, subsample=True
+            batch_size=512, split="train", shuffle=True, subsample=False
         )
         valid_loader = get_cifar10_dataloader(
+            batch_size=512, split="val", shuffle=False
+        )
+    elif dataset == "CIFAR2_32":
+        train_loader = get_cifar2_dataloader(
+            batch_size=512, split="train", shuffle=True, subsample=False
+        )
+        valid_loader = get_cifar2_dataloader(
             batch_size=512, split="val", shuffle=False
         )
     else:
