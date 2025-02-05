@@ -38,6 +38,6 @@ class Log:
         """
         module_log = binfo.log[module_name]
         if log_type not in module_log:
-            module_log[log_type] = data
+            module_log[log_type] = data.clone()
         else:
             module_log[log_type] += data
