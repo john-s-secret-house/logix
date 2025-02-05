@@ -215,8 +215,9 @@ def synchronize_device(
 
     for module_name, module_dict in tgt.items():
         for log in module_dict.keys():
-            if device is None:
-                device = src[module_name][log].device
+            if hasattr(src[module_name][log], 'device'):
+                if device is None:
+                    device = src[module_name][log].device
             tgt[module_name][log] = tgt[module_name][log].to(device=device)
 
 
