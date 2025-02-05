@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -42,13 +42,18 @@ def patch_trainer(TrainerClass):
             data_collator: Optional[DataCollator] = None,
             train_dataset: Optional[Dataset] = None,
             eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
-            tokenizer: Optional[PreTrainedTokenizerBase] = None,
+            processing_class: Optional[
+                Union[PreTrainedTokenizerBase, BaseImageProcessor, FeatureExtractionMixin, ProcessorMixin]
+            ] = None,
+            # tokenizer: Optional[PreTrainedTokenizerBase] = None,
             model_init: Optional[Callable[[], PreTrainedModel]] = None,
+            compute_loss_func: Optional[Callable] = None,
             compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
             callbacks: Optional[List[TrainerCallback]] = None,
             optimizers: Tuple[
                 torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR
             ] = (None, None),
+            optimizer_cls_and_kwargs: Optional[Tuple[Type[torch.optim.Optimizer], Dict[str, Any]]] = None,
             preprocess_logits_for_metrics: Optional[
                 Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
             ] = None,
@@ -79,21 +84,24 @@ def patch_trainer(TrainerClass):
             args.save_strategy = "no"
 
             super().__init__(
-                model,
-                args,
-                data_collator,
-                train_dataset,
-                eval_dataset,
-                tokenizer,
-                model_init,
-                compute_metrics,
-                (
+                model=model,
+                args=args,
+                data_collator=data_collator,
+                train_dataset=train_dataset,
+                eval_dataset=eval_dataset,
+                processing_class=processing_class,
+                # tokenizer=tokenizer,
+                model_init=model_init,
+                compute_loss_func=compute_loss_func,
+                compute_metrics=compute_metrics,
+                callbacks=(
                     [logix_callback]
                     if callbacks is None
                     else [logix_callback] + callbacks
                 ),
-                optimizers,
-                preprocess_logits_for_metrics,
+                optimizers=optimizers,
+                optimizer_cls_and_kwargs=optimizer_cls_and_kwargs,
+                preprocess_logits_for_metrics=preprocess_logits_for_metrics,
             )
 
         def extract_log(self, *args, **kwargs):
@@ -155,7 +163,7 @@ def patch_trainer(TrainerClass):
             return self.lr_scheduler
 
         def training_step(
-            self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]
+            self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], num_items_in_batch=None
         ) -> torch.Tensor:
             model.eval()
             inputs = self._prepare_inputs(inputs)
@@ -192,13 +200,18 @@ def patch_trainer(TrainerClass):
         def get_data_id(self, inputs):
             ipt = inputs.get(self.logix_input_key)
             if self.data_id_logic == "detokenize":
-                assert self.tokenizer is not None
-                return self.tokenizer.batch_decode(ipt, skip_special_tokens=True)
+                # assert self.tokenizer is not None
+                assert self.processing_class is not None
+                # return self.tokenizer.batch_decode(ipt, skip_special_tokens=True)
+                return self.processing_class.batch_decode(ipt, skip_special_tokens=True)
             elif self.data_id_logic == "hash":
                 return self.data_id_generator(ipt)
 
         def get_sum_scale(self, inputs):
+            # print(f"inputs({type(inputs)}): {len(inputs)}, {inputs.keys()}")
+            # print(f"inputs({type(inputs)}): {len(inputs)}, {inputs.keys()}, inputs[input]: {inputs.get('input').shape}, inputs[label]: {inputs.get('label').shape}")
             labels = inputs.get(self.logix_label_key)
+            # print(f"labels({type(labels)}): {len(labels)}")
             return (labels != self.logix_ignore_idx).sum().item()
 
     return PatchedTrainer
