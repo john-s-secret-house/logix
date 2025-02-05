@@ -33,7 +33,7 @@ def main():
     set_seed(0)
 
     # prepare model & data loader
-    model, tokenizer = construct_model(resume=True)
+    model, tokenizer = construct_model(resume=False)
     model.eval()
     train_dataset = get_datasets()[-1]
 
@@ -58,7 +58,7 @@ def main():
     LogIXTrainer = patch_trainer(Trainer)
     trainer = LogIXTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=train_dataset,
         data_collator=default_data_collator,
         args=training_args,
