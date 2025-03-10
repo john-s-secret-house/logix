@@ -6,6 +6,7 @@ from utils import construct_rn9, get_cifar10_dataloader, get_cifar2_dataloader
 
 from logix import LogIX, LogIXScheduler
 from logix.utils import DataIDGenerator
+from logix.config import Config, LoggingConfig
 
 parser = argparse.ArgumentParser("CIFAR Influence Analysis")
 parser.add_argument("--ckpt_path", type=str, default="../../../ckpts/CIFAR2_32_bs2048_ckpts", help="Checkpoint path")
@@ -18,10 +19,12 @@ parser.add_argument("--lora", type=str, default="none")
 # parser.add_argument("--hessian", type=str, default="raw")
 parser.add_argument("--hessian", type=str, default="kfac")
 parser.add_argument("--save", type=str, default="grad")
+parser.add_argument("--device", type=str, default="cuda:0")
 args = parser.parse_args()
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device(args.device)
 dataset = args.data
+save_path = f"{args.data}_md{args.md_num}_LoRA{args.lora}_H{args.hessian}_S{args.save}"
 
 model = construct_rn9().to(DEVICE)
 
@@ -46,8 +49,11 @@ test_loader = dataloader_fn(
     # batch_size=16, split="valid", shuffle=False, indices=args.eval_idxs, augment=False
     batch_size=512, split="valid", shuffle=False, subsample=False, augment=False
 )
-
-logix = LogIX(project=f"{args.data}_md{args.md_num}", config="./config.yaml")
+logging_config: LoggingConfig = LoggingConfig(flush_threshold=1000000000, num_workers=1, cpu_offload=False)
+logix = LogIX(
+    project=save_path,
+    config="./config.yaml",
+    logging_config=logging_config,)
 logix_scheduler = LogIXScheduler(
     logix, lora=args.lora, hessian=args.hessian, save=args.save
 )
@@ -57,7 +63,8 @@ logix.watch(model)
 
 id_gen = DataIDGenerator()
 for epoch in logix_scheduler:
-    for inputs, targets in tqdm(train_loader, desc="Extracting log"):
+    for itm in tqdm(train_loader, desc="Extracting log"):
+        inputs, targets = itm['input'], itm['label']
         with logix(data_id=id_gen(inputs)):
             inputs, targets = inputs.to(DEVICE), targets.to(DEVICE)
             model.zero_grad()
@@ -73,7 +80,8 @@ logix.eval()
 logix.setup({"grad": ["log"]})
 results = []
 if_scores_ls = []
-for test_input, test_target in test_loader:
+for test_itm in test_loader:
+    test_input, test_target = test_itm['input'], test_itm['label']
     with logix(data_id=id_gen(test_input)):
         test_input, test_target = test_input.to(DEVICE), test_target.to(DEVICE)
         model.zero_grad()
@@ -94,6 +102,6 @@ for test_input, test_target in test_loader:
 
 # Save
 # if_scores = result["influence"].numpy().tolist()
-if_scores = torch.cat(if_scores_ls, dim=0)
-torch.save(if_scores, f"logix/{args.data}_md{args.md_num}/if_logix.pt")
+if_scores = torch.cat(if_scores_ls, dim=0).transpose(0, 1)
+torch.save({'score': if_scores}, f"logix/{save_path}/if_logix.pt")
 print(f"influence: {if_scores.shape}")
