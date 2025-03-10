@@ -1,3 +1,4 @@
+import os
 import argparse
 
 import torch
@@ -26,7 +27,11 @@ args = parser.parse_args()
 
 DEVICE = torch.device(args.device)
 dataset = args.data
-save_path = f"{args.data}_md{args.md_num}_ep{args.epoch}_LoRA{args.lora}_H{args.hessian}_S{args.save}"
+save_folder: str = f"{args.data}_md{args.md_num}_ep{args.epoch}_LoRA{args.lora}_H{args.hessian}_S{args.save}"
+save_path: str = f"logix/{save_folder}/if_logix.pt"
+if os.path.isfile(save_path):
+    print(f"Already computed: {save_path}")
+    exit(0)
 
 model = construct_rn9().to(DEVICE)
 
@@ -105,5 +110,5 @@ for test_itm in test_loader:
 # Save
 # if_scores = result["influence"].numpy().tolist()
 if_scores = torch.cat(if_scores_ls, dim=0).transpose(0, 1)
-torch.save({'score': if_scores}, f"logix/{save_path}/if_logix.pt")
+torch.save({'score': if_scores}, save_path)
 print(f"influence: {if_scores.shape}")

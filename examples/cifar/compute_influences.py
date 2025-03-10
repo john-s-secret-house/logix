@@ -1,3 +1,4 @@
+import os
 import argparse
 
 import torch
@@ -13,6 +14,7 @@ parser.add_argument("--ckpt_path", type=str, default="../../../ckpts/CIFAR2_32_b
 parser.add_argument("--md_num", type=int, default=10, help="Checkpoint model number")
 parser.add_argument("--data", type=str, default="CIFAR2_32", help="CIFAR10_32/CIFAR100_32")
 # parser.add_argument("--eval-idxs", type=int, nargs="+", default=[0])
+parser.add_argument("--epoch", type=int, default=-1, help="Epoch to train the model")
 parser.add_argument("--eval-idxs", type=int, nargs="+", default=list(range(30)))
 parser.add_argument("--damping", type=float, default=None)
 parser.add_argument("--lora", type=str, default="none")
@@ -24,7 +26,12 @@ args = parser.parse_args()
 
 DEVICE = torch.device(args.device)
 dataset = args.data
-save_path = f"{args.data}_md{args.md_num}_LoRA{args.lora}_H{args.hessian}_S{args.save}"
+# save_folder: str = f"{args.data}_md{args.md_num}_ep{args.epoch}_LoRA{args.lora}_H{args.hessian}_S{args.save}"
+save_folder: str = f"{args.data}_md{args.md_num}_LoRA{args.lora}_H{args.hessian}_S{args.save}"
+save_path: str = f"logix/{save_folder}/if_logix.pt"
+if os.path.isfile(save_path):
+    print(f"Already computed: {save_path}")
+    exit(0)
 
 model = construct_rn9().to(DEVICE)
 
@@ -51,7 +58,7 @@ test_loader = dataloader_fn(
 )
 logging_config: LoggingConfig = LoggingConfig(flush_threshold=1000000000, num_workers=1, cpu_offload=False)
 logix = LogIX(
-    project=save_path,
+    project=save_folder,
     config="./config.yaml",
     logging_config=logging_config,)
 logix_scheduler = LogIXScheduler(
@@ -103,5 +110,5 @@ for test_itm in test_loader:
 # Save
 # if_scores = result["influence"].numpy().tolist()
 if_scores = torch.cat(if_scores_ls, dim=0).transpose(0, 1)
-torch.save({'score': if_scores}, f"logix/{save_path}/if_logix.pt")
+torch.save({'score': if_scores}, save_path)
 print(f"influence: {if_scores.shape}")
