@@ -23,6 +23,7 @@ class LogIXScheduler:
         lora: str = "none",
         hessian: str = "none",
         save: str = "none",
+        epoch: int = None,
     ):
         self._logix = logix
 
@@ -30,6 +31,7 @@ class LogIXScheduler:
         self._hessian = hessian
         self._save = save
 
+        self.epoch = epoch
         self._epoch = -1
         self._logix_state_schedule = []
 
@@ -80,6 +82,14 @@ class LogIXScheduler:
                 last_state["grad"].append(Log)
             last_state["grad"].append(Covariance)
         self._logix_state_schedule.append(last_state)
+        
+        if self.epoch is not None or self.epoch < 0:
+            add_epochs = self.epoch - len(self._logix_state_schedule)
+            if add_epochs > 0:
+                for _ in range(max(0, add_epochs)):
+                    self._logix_state_schedule.append(last_state)
+            else:
+                self._logix_state_schedule = self._logix_state_schedule[:add_epochs]
 
     def __iter__(self):
         return self
