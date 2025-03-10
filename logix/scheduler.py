@@ -83,13 +83,15 @@ class LogIXScheduler:
             last_state["grad"].append(Covariance)
         self._logix_state_schedule.append(last_state)
         
-        if self.epoch is not None or self.epoch < 0:
-            add_epochs = self.epoch - len(self._logix_state_schedule)
-            if add_epochs > 0:
-                for _ in range(max(0, add_epochs)):
-                    self._logix_state_schedule.append(last_state)
-            else:
-                self._logix_state_schedule = self._logix_state_schedule[:add_epochs]
+        if self.epoch is not None:
+            if isinstance(self.epoch, (int, float)) and self.epoch >= 0:
+                self.epoch = int(self.epoch)
+                add_epochs = self.epoch - len(self._logix_state_schedule)
+                if add_epochs > 0:
+                    for _ in range(max(0, add_epochs)):
+                        self._logix_state_schedule.append(last_state)
+                else:
+                    self._logix_state_schedule = self._logix_state_schedule[:add_epochs]
 
     def __iter__(self):
         return self
