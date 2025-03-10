@@ -178,3 +178,6 @@ files/
 examples/**/*.yaml
 **/config.yaml
 examples/language_modeling/scripts
+examples/**/logix*
+examples/**/checkpooints
+examples/**/output
